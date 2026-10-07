@@ -166,6 +166,54 @@ final class RadiationLayer {
 		return false;
 	}
 
+	private static final java.util.regex.Pattern PART = java.util.regex.Pattern.compile("^\\s*(.*?): ([0-9.]+) rad/s$");
+
+	/**
+	 * What a Geiger counter would read a metre and a half above the ground at x, z (or at y, if given), and where it comes
+	 * from. Server thread only.
+	 */
+	static String measure(ServerLevel level, int x, int z, Integer y) throws IOException {
+		boolean loaded = level.hasChunk(x >> 4, z >> 4);
+		int ground = Terrain.surface(level, x, z);
+		double at = y != null ? y + 0.5 : ground + 1.5;
+		List<net.minecraft.network.chat.Component> breakdown = new ArrayList<>();
+		float rate = RadiationTracker.exposureAt(level, new Vec3(x + 0.5, at, z + 0.5), breakdown);
+		List<Object[]> parts = new ArrayList<>();
+		for (var c : breakdown) {
+			java.util.regex.Matcher m = PART.matcher(c.getString());
+			if (!m.matches()) continue;
+			double v = Double.parseDouble(m.group(2));
+			if (v >= 0.0001) parts.add(new Object[]{label(m.group(1)), v});
+		}
+		parts.sort((a, b) -> Double.compare((double) b[1], (double) a[1]));
+		StringWriter out = new StringWriter();
+		JsonWriter w = new JsonWriter(out);
+		w.beginObject().name("x").value(x).name("z").value(z).name("y").value(Math.floor(at * 10) / 10).name("ground").value(ground)
+				.name("loaded").value(loaded).name("rads").value(r4(rate)).name("maxRads").value(RadiationConfig.get().maxRads);
+		w.name("parts").beginArray();
+		for (int i = 0; i < Math.min(6, parts.size()); i++) {
+			w.beginArray().value((String) parts.get(i)[0]).value(r4((double) parts.get(i)[1])).endArray();
+		}
+		w.endArray().endObject();
+		w.close();
+		return out.toString();
+	}
+
+	/** "source radioactive_cloud_12" and the like, as people would say it. */
+	private static String label(String s) {
+		if (s.startsWith("source ")) {
+			String n = s.substring(7);
+			if (n.startsWith("radioactive_cloud") || n.startsWith("fission_cloud")) return "radioactive cloud";
+			if (n.startsWith("fallout")) return "fallout";
+			if (n.startsWith("fission_release")) return "open reactor core";
+			return "source " + n;
+		}
+		if (s.startsWith("zone ")) return s;
+		int colon = s.indexOf(':');
+		// "fission:corium at 1 2 3" -> "corium at 1 2 3"
+		return colon > 0 && colon < s.indexOf(' ') ? s.substring(colon + 1).replace('_', ' ') : s;
+	}
+
 	private static double r1(double v) {
 		return Math.round(v * 10) / 10.0;
 	}

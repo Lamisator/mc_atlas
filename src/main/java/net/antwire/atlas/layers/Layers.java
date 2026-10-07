@@ -40,6 +40,29 @@ public final class Layers {
 		return l;
 	}
 
+	/**
+	 * A dose-rate reading at one place, for the map's measuring tool (any thread: it is taken on the server thread).
+	 * @return JSON, or null when there is no such dimension or no Radiation mod
+	 */
+	public static String measure(MinecraftServer server, String dim, int x, int z, Integer y) {
+		if (!RADIATION || failedRadiation) return null;
+		Renderer.Dim d = Renderer.dims().get(dim);
+		if (d == null) return null;
+		try {
+			return server.submit(() -> {
+				try {
+					return RadiationLayer.measure(d.level, x, z, y);
+				} catch (java.io.IOException e) {
+					return null;
+				}
+			}).get(2, java.util.concurrent.TimeUnit.SECONDS);
+		} catch (java.util.concurrent.TimeoutException e) {
+			return "{\"busy\":true}";
+		} catch (Exception e) {
+			return null;
+		}
+	}
+
 	public static void reset() {
 		ticks = 0;
 		radiationAt = coverageAt = 0;

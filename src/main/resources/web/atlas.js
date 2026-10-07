@@ -23,7 +23,9 @@
   }
   const save = () => { if (forced !== null) return; localStorage.setItem('atlas.layers', JSON.stringify(state.on)); localStorage.setItem('atlas.station', state.station); };
 
-  const map = L.map('map', { crs: L.CRS.Simple, minZoom: -6, maxZoom: 4, zoomSnap: 1, preferCanvas: true, zoomControl: true, attributionControl: true });
+  const map = L.map('map', { crs: L.CRS.Simple, minZoom: -6, maxZoom: 4, zoomSnap: 1, preferCanvas: true, zoomControl: false, attributionControl: true });
+  // top right: the panel covers the top left
+  L.control.zoom({ position: 'topright' }).addTo(map);
   map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
   const ll = (x, z) => L.latLng(-z, x);
   const canvas = L.canvas({ padding: 0.3 });
@@ -147,6 +149,7 @@
       const ov = raster(dose.cells, dose.step, doseColor);
       if (ov) groups.doserate.addLayer(ov);
       state.dose = dose;
+      state.doseAt = new Map(dose.cells.map((c) => [c[0] + ',' + c[1], c[2]]));
     }
     if (!src) return;
     if (state.on.sources) {
@@ -294,6 +297,8 @@
 
   function setDim(key, keepView) {
     state.dim = key;
+    meter.pins.clearLayers();
+    meter.last = null;
     $('dim').value = key;
     tiles.redraw();
     if (!keepView) {
@@ -309,6 +314,103 @@
   }
 
   map.on('mousemove', (e) => { $('coords').textContent = `x ${Math.floor(e.latlng.lng)}   z ${Math.floor(-e.latlng.lat)}`; });
+
+  // ------------------------------------------------------------------ measuring radiation under the mouse
+
+  const meter = { on: false, want: null, busy: false, cache: new Map(), last: null, pins: L.layerGroup().addTo(map), el: $('meter') };
+  const lethal = (rads, max) => {
+    if (rads < 0.0005) return 'harmless';
+    const s = max / rads;
+    return s < 60 ? `lethal dose in ${Math.round(s)} s` : s < 3600 ? `lethal dose in ${Math.round(s / 60)} min` : s < 86400 * 3 ? `lethal dose in ${(s / 3600).toFixed(s < 36000 ? 1 : 0)} h` : 'lethal dose in days';
+  };
+  const swatch = (rads) => { const c = doseColor(rads); return rads < 0.002 ? '#3a424d' : `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`; };
+  function meterHtml(m, estimate) {
+    if (!m) return '';
+    let h = `<div class="big"><span class="sw" style="background:${swatch(m.rads)}"></span>${estimate ? '≈ ' : ''}${fmt(m.rads)} <small>rad/s</small></div>`;
+    h += `<div class="where">x ${m.x} z ${m.z}${m.ground !== undefined ? ` · ${(m.y - m.ground).toFixed(1)} m above the ground (y ${m.ground})` : ''}</div>`;
+    if (estimate) return h + '<div class="where">measuring…</div>';
+    h += `<div class="where">${lethal(m.rads, m.maxRads)}${m.loaded ? '' : ' · area not loaded: walls and roofs not counted'}</div>`;
+    if (m.parts && m.parts.length) h += '<div class="parts">' + m.parts.map((p) => `<div><span>${esc(p[0])}</span><b>${fmt(p[1])}</b></div>`).join('') + '</div>';
+    return h;
+  }
+  function meterShow(m, estimate, pt) {
+    meter.el.innerHTML = meterHtml(m, estimate);
+    if (pt) meterPlace(pt);
+  }
+  /** Next to the mouse, on the other side near the edges of the map. */
+  function meterPlace(pt) {
+    const size = map.getSize(), w = meter.el.offsetWidth || 220, h = meter.el.offsetHeight || 90;
+    meter.el.style.left = (pt.x + 18 + w > size.x ? pt.x - 12 - w : pt.x + 18) + 'px';
+    meter.el.style.top = (pt.y + 18 + h > size.y ? pt.y - 12 - h : pt.y + 18) + 'px';
+  }
+  async function meterFetch() {
+    if (meter.busy || !meter.want) return;
+    const w = meter.want, key = `${state.dim}/${w.x},${w.z}`;
+    const hit = meter.cache.get(key);
+    if (hit && Date.now() - hit.at < 3000) { meter.want = null; if (meter.last === key) meterShow(hit.m, false); return; }
+    meter.busy = true; meter.want = null;
+    const m = await get(`api/measure/${state.dim}?x=${w.x}&z=${w.z}`);
+    meter.busy = false;
+    if (m && !m.busy) {
+      meter.cache.set(key, { m, at: Date.now() });
+      if (meter.cache.size > 400) meter.cache.delete(meter.cache.keys().next().value);
+      if (meter.last === key && meter.on) meterShow(m, false);
+    } else if (meter.last === key && meter.on) {
+      meter.el.innerHTML = '<div class="where">The server does not answer (paused while nobody is online?)</div>';
+    }
+    meterFetch();
+  }
+  function meterMove(e) {
+    if (!meter.on) return;
+    const x = Math.floor(e.latlng.lng), z = Math.floor(-e.latlng.lat), key = `${state.dim}/${x},${z}`;
+    if (key === meter.last) { meterPlace(e.containerPoint); return; }
+    meter.last = key;
+    // at once: the cached reading or the 8-block grid, then the real measurement
+    const hit = meter.cache.get(key);
+    if (hit) meterShow(hit.m, false, e.containerPoint);
+    else {
+      const st = state.dose && state.dose.step, g = st && state.doseAt ? state.doseAt.get(Math.floor(x / st) * st + ',' + Math.floor(z / st) * st) || 0 : 0;
+      meterShow({ x, z, rads: g }, true, e.containerPoint);
+    }
+    meter.el.hidden = false;
+    meter.want = { x, z };
+    meterFetch();
+  }
+  function meterToggle(on) {
+    meter.on = on;
+    meter.button.classList.toggle('active', on);
+    map.getContainer().classList.toggle('measuring', on);
+    meter.el.hidden = true;
+    meter.last = null;
+  }
+  map.on('mousemove', meterMove);
+  map.on('mouseout', () => { meter.el.hidden = true; meter.last = null; });
+  map.on('click', (e) => {
+    if (!meter.on) return;
+    const key = meter.last, hit = key && meter.cache.get(key);
+    if (!hit) return;
+    const m = hit.m;
+    L.marker(ll(m.x + 0.5, m.z + 0.5), { icon: L.divIcon({ className: 'pin', html: '✚', iconSize: [16, 16] }) })
+      .bindTooltip(`<b>${fmt(m.rads)} rad/s</b> · x ${m.x} z ${m.z}<br>${lethal(m.rads, m.maxRads)}<br><small>click to remove</small>`, { permanent: true, direction: 'right', offset: [8, 0] })
+      .on('click', (ev) => { L.DomEvent.stopPropagation(ev); meter.pins.removeLayer(ev.target); })
+      .addTo(meter.pins);
+  });
+  const MeterControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const bar = L.DomUtil.create('div', 'leaflet-bar');
+      const a = L.DomUtil.create('a', 'meter-btn', bar);
+      a.href = '#'; a.title = 'Measure radiation under the mouse (M); click to pin a reading'; a.innerHTML = '☢';
+      L.DomEvent.on(a, 'click', (ev) => { L.DomEvent.preventDefault(ev); L.DomEvent.stopPropagation(ev); meterToggle(!meter.on); });
+      meter.button = a;
+      return bar;
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!meter.button || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.key === 'm' || e.key === 'M') meterToggle(!meter.on);
+    if (e.key === 'Escape' && meter.on) meterToggle(false);
+  });
   map.on('moveend', hash);
 
   async function start() {
@@ -318,6 +420,7 @@
     $('dim').innerHTML = state.info.dims.map((d) => `<option value="${d.key}">${esc(nice(d.id.split(':')[1]))}</option>`).join('');
     $('dim').addEventListener('change', () => setDim($('dim').value, false));
     buildPanel();
+    if (state.info.layers.includes('radiation')) new MeterControl().addTo(map);
     const h = location.hash.slice(1).split('/');
     if (h.length === 4 && state.info.dims.some((d) => d.key === h[0])) {
       setDim(h[0], true);

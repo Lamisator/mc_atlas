@@ -33,7 +33,9 @@ public final class WebServer {
 	private static final Pattern LAYER = Pattern.compile("^/api/(grid|radiation|doserate|stations|coverage)/([a-z0-9_.-]+)$");
 	private static final Map<String, String> TYPES = Map.of("html", "text/html; charset=utf-8", "js", "text/javascript; charset=utf-8",
 			"css", "text/css; charset=utf-8", "png", "image/png", "svg", "image/svg+xml", "json", "application/json; charset=utf-8");
+	private static final Pattern MEASURE = Pattern.compile("^/api/measure/([a-z0-9_.-]+)$");
 	private static HttpServer server;
+	private static MinecraftServer minecraft;
 	private static volatile String info = "{}";
 
 	private WebServer() {
@@ -42,6 +44,7 @@ public final class WebServer {
 	public static void start(MinecraftServer mc) {
 		AtlasConfig config = AtlasConfig.get();
 		info = info(mc);
+		minecraft = mc;
 		try {
 			server = HttpServer.create(new InetSocketAddress(config.bind, config.port), 64);
 		} catch (IOException e) {
@@ -63,6 +66,7 @@ public final class WebServer {
 			server.stop(0);
 			server = null;
 		}
+		minecraft = null;
 	}
 
 	private static void handle(HttpExchange ex) throws IOException {
@@ -89,6 +93,11 @@ public final class WebServer {
 				json(ex, LayerData.get(m.group(1) + "/" + m.group(2)));
 				return;
 			}
+			m = MEASURE.matcher(path);
+			if (m.matches()) {
+				measure(ex, m.group(1));
+				return;
+			}
 			switch (path) {
 				case "/api/info" -> json(ex, info);
 				case "/api/live" -> json(ex, LayerData.get("live"));
@@ -97,6 +106,32 @@ public final class WebServer {
 			}
 		} catch (IOException e) {
 			// the browser went away
+		}
+	}
+
+	/** {@code /api/measure/<dim>?x=..&z=..[&y=..]}: the dose rate there, measured now. */
+	private static void measure(HttpExchange ex, String dim) throws IOException {
+		Map<String, String> q = new java.util.HashMap<>();
+		String query = ex.getRequestURI().getRawQuery();
+		if (query != null) {
+			for (String kv : query.split("&")) {
+				int i = kv.indexOf('=');
+				if (i > 0) q.put(kv.substring(0, i), kv.substring(i + 1));
+			}
+		}
+		try {
+			int x = Integer.parseInt(q.get("x")), z = Integer.parseInt(q.get("z"));
+			Integer y = q.containsKey("y") ? Integer.valueOf(q.get("y")) : null;
+			if (Math.abs(x) > 30_000_000 || Math.abs(z) > 30_000_000) throw new NumberFormatException();
+			MinecraftServer mc = minecraft;
+			String body = mc == null ? null : net.antwire.atlas.layers.Layers.measure(mc, dim, x, z, y);
+			if (body == null) {
+				send(ex, 404, "text/plain", "no radiation here".getBytes(StandardCharsets.UTF_8), true);
+			} else {
+				json(ex, body);
+			}
+		} catch (NumberFormatException | NullPointerException e) {
+			send(ex, 400, "text/plain", "x and z needed".getBytes(StandardCharsets.UTF_8), true);
 		}
 	}
 

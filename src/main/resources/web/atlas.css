@@ -47,3 +47,17 @@ input[type=checkbox] { accent-color: var(--accent); }
 .leaflet-bar a { background: #20252c; color: var(--text); border-bottom-color: var(--line); }
 .leaflet-bar a:hover { background: #2a3038; }
 @media (max-width: 600px) { #panel { width: calc(100% - 24px); } #legend { max-width: calc(100% - 24px); bottom: 40px; } }
+.meter-btn { font-size: 16px; line-height: 30px !important; }
+.meter-btn.active { background: var(--accent) !important; color: #000 !important; }
+.measuring { cursor: crosshair !important; }
+.measuring .leaflet-interactive { cursor: crosshair !important; }
+#meter { position: absolute; z-index: 1100; pointer-events: none; min-width: 190px; max-width: 290px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+#meter[hidden] { display: none; }
+#meter .big { display: flex; align-items: center; gap: 7px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#meter .big small { font-size: 12px; font-weight: 400; color: var(--muted); }
+#meter .big .sw { width: 14px; height: 14px; }
+#meter .where { color: var(--muted); margin-top: 2px; }
+#meter .parts { margin-top: 5px; padding-top: 4px; border-top: 1px solid var(--line); }
+#meter .parts div { display: flex; justify-content: space-between; gap: 10px; }
+#meter .parts b { font-weight: 500; font-variant-numeric: tabular-nums; }
