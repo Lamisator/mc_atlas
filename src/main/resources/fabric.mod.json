@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "atlas",
+	"version": "${version}",
+	"name": "Atlas",
+	"description": "A live web map of the world: rendered tiles, waypoints, players, power grids (Gridworks), radiation (Radiation, Fission) and broadcast reception (Ham Radio). Server side only.",
+	"authors": ["Marius Kloeck"],
+	"contact": {"sources": "https://github.com/Lamisator/mc_atlas"},
+	"license": "MIT",
+	"icon": "assets/atlas/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["net.antwire.atlas.Atlas"]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"gridworks": ">=1.1.2",
+		"radiation": ">=1.4.0",
+		"hamradio": ">=1.6.0",
+		"fission": ">=1.1.0"
+	}
+}
