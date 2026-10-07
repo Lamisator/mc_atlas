@@ -151,7 +151,11 @@ public final class WebServer {
 			for (String l : Layers.available()) w.value(l);
 			w.endArray();
 			w.name("dims").beginArray();
-			for (var d : Renderer.dims().values()) {
+			List<Renderer.Dim> dims = new java.util.ArrayList<>(Renderer.dims().values());
+			// Overworld first (the page opens on the first), then the others in the config's order
+			List<String> order = AtlasConfig.get().dimensions;
+			dims.sort(java.util.Comparator.comparingInt((Renderer.Dim d) -> d.level == mc.overworld() ? -1 : order.indexOf(d.level.dimension().identifier().toString())));
+			for (var d : dims) {
 				var spawn = mc.overworld().getRespawnData().pos();
 				boolean over = d.level == mc.overworld();
 				w.beginObject().name("key").value(d.key).name("id").value(d.level.dimension().identifier().toString())
