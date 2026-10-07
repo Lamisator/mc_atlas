@@ -65,7 +65,7 @@ final class RadiationLayer {
 		w.name("sources").beginArray();
 		for (RadiationSources.PointSource s : sources.sources) {
 			if (!s.dimension.equals(dim)) continue;
-			String kind = s.name.startsWith("fission_cloud") ? "cloud" : s.name.startsWith("fallout") ? "fallout"
+			String kind = s.name.startsWith("radioactive_cloud") || s.name.startsWith("fission_cloud") ? "cloud" : s.name.startsWith("fallout") ? "fallout"
 					: s.name.startsWith("fission_release") ? "release" : "source";
 			w.beginObject().name("name").value(s.name).name("kind").value(kind).name("x").value(r1(s.x)).name("y").value(r1(s.y)).name("z").value(r1(s.z))
 					.name("rads").value(r4(s.radsAt(now))).name("radius").value(r1(s.radius)).endObject();
