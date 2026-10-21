@@ -13,7 +13,7 @@ Source code: [github.com/Lamisator/mc_atlas](https://github.com/Lamisator/mc_atl
 
 Atlas runs on the **server** only: players need nothing installed and can play with or without it.
 
-1. Put `atlas-1.1.1.jar` into the server's `mods` folder (Fabric loader 0.19.5 or newer, Fabric API).
+1. Put `atlas-1.1.2.jar` into the server's `mods` folder (Fabric loader 0.19.5 or newer, Fabric API).
 2. Start the server. The first start renders every saved chunk (the DARC Funkstadt map takes about ten seconds).
 3. Open `http://<your server>:8123/` in a browser. On a server at home, open TCP port 8123 in the firewall or router.
 
@@ -152,6 +152,9 @@ at the next start.
 
 ## Changes
 
+- **1.1.2**: the web map no longer stops answering when a browser keeps spare connections open without sending
+  anything (they took all six workers for good); such a connection is closed after 15 s, and up to 32 requests are served
+  at once.
 - **1.1.1**: broadcast coverage without load on the server thread: the terrain heights of every path are fetched off
   the server thread into Ham Radio's height cache first (kept in the world save), so the three passes cost about
   0.3 s of server time instead of 2-3 minutes after each start; the dose-rate raster uses the same cache for unloaded
@@ -165,7 +168,7 @@ at the next start.
 ## Building from source
 
 ```
-./gradlew build                 # build/libs/atlas-1.1.1.jar
+./gradlew build                 # build/libs/atlas-1.1.2.jar
 ./gradlew runServer -PmapMods=<other mods' jars, comma separated>
 ```
 

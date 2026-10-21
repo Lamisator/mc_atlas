@@ -20,7 +20,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -45,17 +44,25 @@ public final class WebServer {
 		AtlasConfig config = AtlasConfig.get();
 		info = info(mc);
 		minecraft = mc;
+		// a connection that never sends its request (browsers open spare ones ahead) is closed after 15 s; without this
+		// every worker could sit reading one of them forever and the map stopped answering (read once, at first use)
+		if (System.getProperty("sun.net.httpserver.maxReqTime") == null) {
+			System.setProperty("sun.net.httpserver.maxReqTime", "15");
+		}
 		try {
 			server = HttpServer.create(new InetSocketAddress(config.bind, config.port), 64);
 		} catch (IOException e) {
 			Atlas.LOGGER.error("Atlas: cannot open the web map on {}:{} ({}) - is the port in use?", config.bind, config.port, e.toString());
 			return;
 		}
-		server.setExecutor(Executors.newFixedThreadPool(6, r -> {
+		java.util.concurrent.ThreadPoolExecutor pool = new java.util.concurrent.ThreadPoolExecutor(32, 32, 60, java.util.concurrent.TimeUnit.SECONDS,
+				new java.util.concurrent.LinkedBlockingQueue<>(), r -> {
 			Thread t = new Thread(r, "Atlas web");
 			t.setDaemon(true);
 			return t;
-		}));
+		});
+		pool.allowCoreThreadTimeOut(true);
+		server.setExecutor(pool);
 		server.createContext("/", WebServer::handle);
 		server.start();
 		Atlas.LOGGER.info("Atlas: web map on http://{}:{}/", config.bind, config.port);
