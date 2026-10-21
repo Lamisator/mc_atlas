@@ -13,7 +13,7 @@ Source code: [github.com/Lamisator/mc_atlas](https://github.com/Lamisator/mc_atl
 
 Atlas runs on the **server** only: players need nothing installed and can play with or without it.
 
-1. Put `atlas-1.1.0.jar` into the server's `mods` folder (Fabric loader 0.19.5 or newer, Fabric API).
+1. Put `atlas-1.1.1.jar` into the server's `mods` folder (Fabric loader 0.19.5 or newer, Fabric API).
 2. Start the server. The first start renders every saved chunk (the DARC Funkstadt map takes about ten seconds).
 3. Open `http://<your server>:8123/` in a browser. On a server at home, open TCP port 8123 in the firewall or router.
 
@@ -144,12 +144,18 @@ at the next start.
 - **An empty server pauses** (`pause-when-empty-seconds` in `server.properties`, 60 s by default): while nobody is
   online, the map stays as it was and is still served; layers continue when someone joins. Set it to 0 to keep them
   running.
-- Work is spread over ticks (a few milliseconds each) and a background thread, so the server keeps its 20 ticks per
-  second; the first broadcast coverage costs the most (about a minute and a half of server time spread over five
-  minutes for the two Funkstadt transmitters).
+- Work is spread over ticks (a few milliseconds each) and background threads, so the server keeps its 20 ticks per
+  second. The terrain heights the broadcast coverage needs are fetched from the world generator on Ham Radio's worker
+  thread and kept in the world save, so a coverage costs well under a second of server time (the very first one
+  takes a few minutes of background work).
 - Leaflet (BSD-2-Clause) is bundled, so the map also works without internet access.
 
 ## Changes
+
+- **1.1.1**: broadcast coverage without load on the server thread: the terrain heights of every path are fetched off
+  the server thread into Ham Radio's height cache first (kept in the world save), so the three passes cost about
+  0.3 s of server time instead of 2-3 minutes after each start; the dose-rate raster uses the same cache for unloaded
+  ground. Needs Ham Radio 1.15.2 or newer (older ones are refused at start).
 
 - **1.1.0**: measuring tool (☢ / M): the dose rate under the mouse, live; pin readings. Zoom buttons moved to the
   top right (the panel covered them).
@@ -159,7 +165,7 @@ at the next start.
 ## Building from source
 
 ```
-./gradlew build                 # build/libs/atlas-1.1.0.jar
+./gradlew build                 # build/libs/atlas-1.1.1.jar
 ./gradlew runServer -PmapMods=<other mods' jars, comma separated>
 ```
 

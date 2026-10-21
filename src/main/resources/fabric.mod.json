@@ -18,10 +18,13 @@
 		"java": ">=25",
 		"fabric-api": "*"
 	},
+	"breaks": {
+		"hamradio": "<1.15.2"
+	},
 	"suggests": {
 		"gridworks": ">=1.1.2",
 		"radiation": ">=1.4.0",
-		"hamradio": ">=1.6.0",
+		"hamradio": ">=1.15.2",
 		"fission": ">=1.1.0"
 	}
 }

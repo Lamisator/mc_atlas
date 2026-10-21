@@ -8,7 +8,7 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// optional: overlays for these mods are switched on only when they are installed
-	compileOnly files("libs/gridworks-1.1.2.jar", "libs/radiation-1.4.0.jar", "libs/hamradio-1.6.2.jar")
+	compileOnly files("libs/gridworks-1.1.2.jar", "libs/radiation-1.4.0.jar", "libs/hamradio-1.15.2.jar")
 
 	// running a server on a saved world that needs more mods: -PmapMods=/path/a.jar,/path/b.jar
 	if (project.hasProperty("mapMods")) {

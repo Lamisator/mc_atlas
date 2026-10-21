@@ -49,6 +49,9 @@ final class BroadcastLayer {
 		final int step, range;
 		long started = System.nanoTime(), points;
 		long cpu;
+		/** Terrain heights of the current station and pass being fetched off the server thread, see {@link #warm}. */
+		java.util.concurrent.CompletableFuture<Void> warm;
+		int warmed = -1;
 
 		Job(ServerLevel level, List<Tx> stations, int step, int range) {
 			this.level = level;
@@ -179,16 +182,19 @@ final class BroadcastLayer {
 				j.index = 0;
 				continue;
 			}
+			// the terrain heights along every path of this station and pass first, on Ham Radio's worker thread
+			int key = j.station * 3 + j.pass;
+			if (j.warmed != key) {
+				j.warmed = key;
+				j.warm = warm(j, tx, side);
+			}
+			if (!j.warm.isDone()) break;
 			int gx = j.index % side, gz = j.index / side;
 			j.index++;
-			int stride = j.stride();
-			if (gx % stride != 0 || gz % stride != 0 || j.pass > 0 && gx % (stride * 2) == 0 && gz % (stride * 2) == 0) continue;
+			int[] p = point(j, j.pass, tx, gx, gz);
+			if (p == null) continue;
 			j.points++;
-			// one grid for all stations, aligned to the coarsest pass, so their cells can be combined
-			int cell = j.step * 4;
-			int x = Math.floorDiv(tx.x - j.range, cell) * cell + gx * j.step, z = Math.floorDiv(tx.z - j.range, cell) * cell + gz * j.step;
-			double dx = x - tx.x, dz = z - tx.z;
-			if (dx * dx + dz * dz > (double) j.range * j.range) continue;
+			int x = p[0], z = p[1];
 			int y = Terrain.surface(j.level, x, z);
 			Station rx = Station.fixed(j.level, new Vec3(x + 0.5, y + 1.5, z + 0.5), AntennaType.RUBBER_DUCK, 1.5, 7L);
 			Propagation.Link link = Propagation.compute(tx.station, rx, tx.hz, tx.radiated, 0, tx.m);
@@ -211,6 +217,42 @@ final class BroadcastLayer {
 		}
 		job = null;
 		return false;
+	}
+
+	/**
+	 * Fetches the generator heights of every column the current pass of a station will look at (the grid points and
+	 * the terrain profiles to them) into Ham Radio's cache, off the server thread: without, a cold start cost minutes
+	 * of server time.
+	 */
+	private static java.util.concurrent.CompletableFuture<Void> warm(Job j, Tx tx, int side) {
+		int pass = j.pass;
+		Vec3 from = tx.station.pos;
+		return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+			it.unimi.dsi.fastutil.longs.LongOpenHashSet columns = new it.unimi.dsi.fastutil.longs.LongOpenHashSet();
+			for (int i = 0; i < side * side; i++) {
+				int[] p = point(j, pass, tx, i % side, i / side);
+				if (p == null) continue;
+				columns.add(dev.hamradio.propagation.HeightCache.column(p[0], p[1]));
+				Propagation.pathColumns(from.x, from.z, p[0] + 0.5, p[1] + 0.5, columns);
+			}
+			return columns;
+		}).thenCompose(columns -> dev.hamradio.propagation.HeightCache.prefetch(j.level, columns))
+				.exceptionally(t -> {
+					Atlas.LOGGER.warn("Atlas: fetching terrain heights failed: {}", t.toString());
+					return null;
+				});
+	}
+
+	/** The grid point of a station at grid position gx/gz if that pass measures it, otherwise null. */
+	private static int[] point(Job j, int pass, Tx tx, int gx, int gz) {
+		int stride = 4 >> pass;
+		if (gx % stride != 0 || gz % stride != 0 || pass > 0 && gx % (stride * 2) == 0 && gz % (stride * 2) == 0) return null;
+		// one grid for all stations, aligned to the coarsest pass, so their cells can be combined
+		int cell = j.step * 4;
+		int x = Math.floorDiv(tx.x - j.range, cell) * cell + gx * j.step, z = Math.floorDiv(tx.z - j.range, cell) * cell + gz * j.step;
+		double dx = x - tx.x, dz = z - tx.z;
+		if (dx * dx + dz * dz > (double) j.range * j.range) return null;
+		return new int[]{x, z};
 	}
 
 	private static String json(ServerLevel level, List<Tx> stations, List<List<int[]>> cells, int step) throws IOException {
