@@ -65,7 +65,7 @@ network that cannot supply everything shows the share it does.
   inside of a concrete hall can read hundreds, the street outside nothing. Measured again every 30 seconds.
 - **Sources, zones, clouds**: radiation zones (dashed boxes), point sources, Fission's open reactor cores and
   **radioactive clouds** (☁, with their size) as they drift with the wind, and nuclear waste barrels.
-- **Fallout points**: where clouds left fallout (hidden by default, there can be many).
+- **Contaminated ground & water**: every contaminated 4x4 patch (fallout, spilled fission products; water outlined in blue), coloured by its dose rate (hidden by default, there can be many).
 - **Radiating blocks**: corium, debris, fuel fragments, spent fuel - every block the Radiation mod knows radiates.
 
 | A reactor accident seen from the city | Close up: dose rates, debris, clouds drifting away |
