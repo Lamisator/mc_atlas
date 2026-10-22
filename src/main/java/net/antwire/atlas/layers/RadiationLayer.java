@@ -83,6 +83,20 @@ final class RadiationLayer {
 			w.beginArray().value(b.x).value(b.y).value(b.z).endArray();
 		}
 		w.endArray();
+		// contaminated ground and water (Radiation 1.10+): fallout and spills, 4x4 patch by patch
+		w.name("patches").beginArray();
+		try {
+			dev.radiation.api.RadiationApi.forEachContamination(level, 0.001f, (x, y, z, rads, water) -> {
+				try {
+					w.beginArray().value(x).value(z).value(y == Integer.MIN_VALUE ? null : (Number) y).value(r4(rads)).value(water ? 1 : 0).endArray();
+				} catch (java.io.IOException e) {
+					throw new java.io.UncheckedIOException(e);
+				}
+			});
+		} catch (NoSuchMethodError | NoClassDefFoundError e) {
+			// Radiation before 1.10: fallout was point sources, shown with the sources
+		}
+		w.endArray();
 		w.name("barrelRads").value(RadiationConfig.get().barrelRads);
 		w.endObject();
 		w.close();

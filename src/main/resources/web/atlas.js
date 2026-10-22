@@ -58,7 +58,7 @@
     const subBox = (key, text) => `<label><input type="checkbox" data-k="${key}"${state.on[key] ? ' checked' : ''}> ${text}</label>`;
     let h = box('players', 'Players') + box('waypoints', 'Waypoints');
     if (has('grid')) h += box('grid', 'Power grid');
-    if (has('radiation')) h += box('radiation', 'Radiation', `<div class="sub">${subBox('doserate', 'Dose rate map')}${subBox('sources', 'Sources, zones, clouds')}${subBox('fallout', 'Fallout points')}${subBox('emitters', 'Radiating blocks')}</div>`);
+    if (has('radiation')) h += box('radiation', 'Radiation', `<div class="sub">${subBox('doserate', 'Dose rate map')}${subBox('sources', 'Sources, zones, clouds')}${subBox('fallout', 'Contaminated ground & water')}${subBox('emitters', 'Radiating blocks')}</div>`);
     if (has('broadcast')) h += box('broadcast', 'Broadcast reception', `<div class="sub"><select id="station"><option value="best">Best of all stations</option></select>${subBox('stations', 'Transmitters')}</div>`);
     $('layers').innerHTML = h;
     $('layers').querySelectorAll('input[data-k]').forEach((cb) => cb.addEventListener('change', () => {
@@ -172,10 +172,19 @@
       }
     }
     if (state.on.fallout) {
+      // fallout up to Radiation 1.9: one source per 48-block square
       for (const s of src.sources) {
         if (s.kind !== 'fallout') continue;
         L.circleMarker(ll(s.x, s.z), { radius: 3, renderer: canvas, color: '#c8b040', weight: 1, fillOpacity: 0.7 })
           .bindTooltip(`<b>Fallout</b><br>${fmt(s.rads)} rad/s at the centre, ${Math.round(s.radius)} blocks`).addTo(groups.fallout);
+      }
+      // since 1.10: contaminated ground and water, 4x4 patch by patch
+      for (const p of src.patches || []) {
+        const water = p[4] === 1;
+        const c = doseColor(p[3]);
+        L.rectangle(L.latLngBounds(ll(p[0], p[1]), ll(p[0] + 4, p[1] + 4)), { renderer: canvas, stroke: water, color: '#3f8fff', weight: 1,
+          fillColor: `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`, fillOpacity: 0.65 })
+          .bindTooltip(`<b>Contaminated ${water ? 'water' : 'ground'}</b><br>${fmt(p[3])} rad/s` + (p[2] === null ? '' : ` · y ${p[2]}`)).addTo(groups.fallout);
       }
     }
     if (state.on.emitters) {

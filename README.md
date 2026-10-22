@@ -13,7 +13,7 @@ Source code: [github.com/Lamisator/mc_atlas](https://github.com/Lamisator/mc_atl
 
 Atlas runs on the **server** only: players need nothing installed and can play with or without it.
 
-1. Put `atlas-1.1.2.jar` into the server's `mods` folder (Fabric loader 0.19.5 or newer, Fabric API).
+1. Put `atlas-1.2.0.jar` into the server's `mods` folder (Fabric loader 0.19.5 or newer, Fabric API).
 2. Start the server. The first start renders every saved chunk (the DARC Funkstadt map takes about ten seconds).
 3. Open `http://<your server>:8123/` in a browser. On a server at home, open TCP port 8123 in the firewall or router.
 
@@ -152,6 +152,8 @@ at the next start.
 
 ## Changes
 
+- **1.2.0**: the radiation layer's "Contaminated ground & water" shows Radiation 1.10's contaminated patches (fallout and
+  spilled fission products, 4x4 blocks each, water outlined in blue) instead of the old fallout points.
 - **1.1.2**: the web map no longer stops answering when a browser keeps spare connections open without sending
   anything (they took all six workers for good); such a connection is closed after 15 s, and up to 32 requests are served
   at once.
@@ -168,7 +170,7 @@ at the next start.
 ## Building from source
 
 ```
-./gradlew build                 # build/libs/atlas-1.1.2.jar
+./gradlew build                 # build/libs/atlas-1.2.0.jar
 ./gradlew runServer -PmapMods=<other mods' jars, comma separated>
 ```
 
